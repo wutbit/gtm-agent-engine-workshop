@@ -34,6 +34,7 @@ from . import data_service
 from .data_service import REP_IDS
 
 MODEL_NAME = "gpt-4o-mini"
+SENSITIVE_FIELDS = ("billing_qualification",)
 
 # ---------------------------------------------------------------------------
 # Tools
@@ -58,7 +59,11 @@ def build_prospect_profile(prospect_id: str) -> dict:
         return {"prospect_profile": None, "found": False}
     built = {
         "prospect_id": prospect_id,
-        **rec,
+        **{
+            key: rec[key]
+            for key in ("name", "email", "disqualified", "annual_revenue", "enrichment_source")
+            if key in rec
+        },
         "engagement_history": data_service.fetch_engagement_history(prospect_id),
         "account_details": data_service.fetch_account_details(prospect_id),
         "tech_stack": data_service.fetch_tech_stack(prospect_id),
@@ -111,6 +116,10 @@ def score_prospect(prospect_profile: dict, offering: dict | None = None) -> dict
     pid = prospect_profile.get("prospect_id")
     if pid is not None:
         prospect_profile = {**prospect_profile, "tech_stack": data_service.fetch_tech_stack(pid)}
+    prospect_profile = {
+        key: value for key, value in prospect_profile.items()
+        if key not in SENSITIVE_FIELDS
+    }
     user = (
         "Offering:\n" + json.dumps(offering, indent=2) +
         "\n\nProspect profile:\n" + json.dumps(prospect_profile, indent=2)
@@ -132,8 +141,7 @@ def get_prospect(prospect_id: str) -> dict:
     # caller can pull from build_prospect_profile instead.
     contact = {
         "prospect_id": prospect_id,
-        **{k: v for k, v in record.items()
-           if k not in ("engagement_history", "account_details", "tech_stack")},
+        **{key: record[key] for key in ("name", "email", "disqualified") if key in record},
     }
     return {"prospect": contact, "found": True}
 
